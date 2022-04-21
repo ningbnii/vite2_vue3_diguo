@@ -6,6 +6,7 @@ import px2vp from 'postcss-px2vp'
 import { resolve } from 'path'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from 'unplugin-vue-components/resolvers'
+import viteCompression from 'vite-plugin-compression'
 
 const vantStyleImport = () => {
   const libraryName = 'vant'
@@ -24,6 +25,7 @@ const vantStyleImport = () => {
 
 export default defineConfig(({ mode, command }) => {
   const prodMock = true
+  console.log(loadEnv(mode, process.cwd()).VITE_BASEURL)
   return {
     base: loadEnv(mode, process.cwd()).VITE_BASEURL,
     resolve: {
@@ -66,10 +68,11 @@ export default defineConfig(({ mode, command }) => {
         localEnabled: command === 'serve',
         prodEnabled: command !== 'serve' && prodMock,
       }),
-      // 组件自动导入
       Components({
         resolvers: [VantResolver()],
       }),
+      // 打包压缩，主要是本地gzip，如果服务器配置压缩也可以
+      viteCompression(),
     ],
     server: {
       host: '0.0.0.0',
@@ -78,18 +81,40 @@ export default defineConfig(({ mode, command }) => {
       open: true,
     },
     build: {
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 500,
       rollupOptions: {
         output: {
-          manualChunks(id) {
-            if (id.includes('/node_modules/')) {
-              return id
-                .toString()
-                .split('node_modules/')[1]
-                .split('/')[0]
-                .toString()
-            }
+          // manualChunks(id) {
+          //   if (id.includes('/node_modules/')) {
+          //     return id
+          //       .toString()
+          //       .split('node_modules/')[1]
+          //       .split('/')[0]
+          //       .toString()
+          //   }
+          // },
+          manualChunks: {
+            // 拆分代码，这个就是分包，配置完后自动按需加载，现在还比不上webpack的splitchunk，不过也能用了。
+            vue: ['vue', 'vue-router', 'vuex'],
+            vant: ['vant'],
+            // echarts: ['echarts'],
+            // echarts: ['echarts'],
           },
+        },
+      },
+      brotliSize: false,
+      minify: 'terser',
+      cssCodeSplit: true, // 如果设置为false，整个项目中的所有 CSS 将被提取到一个 CSS 文件中
+      terserOptions: {
+        compress: {
+          //生产环境时移除console
+          drop_console: true, //打包时删除console
+          drop_debugger: true, //打包时删除 debugger
+          pure_funcs: ['console.log'],
+        },
+        output: {
+          // 去掉注释内容
+          comments: true,
         },
       },
     },
